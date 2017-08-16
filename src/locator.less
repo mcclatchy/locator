@@ -35,6 +35,7 @@
   background-color: @lighter-grey;
   box-sizing: border-box;
   overflow-x: hidden;
+  transition: background-color 0.5s ease-in-out;
 
   * {
     box-sizing: border-box;
@@ -51,8 +52,7 @@
     -moz-filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale");
     -o-filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale");
     -webkit-filter: grayscale(100%);
-    filter: gray;
-    filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'grayscale\'><feColorMatrix type=\'matrix\' values=\'0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0\'/></filter></svg>#grayscale");
+    filter: grayscale(100%);
   }
 
   .not-grayscale {
@@ -162,6 +162,7 @@
   }
 
   &.controls-closed {
+    background-color: #121212;
 
     .locator-map .leaflet-top.leaflet-left,
     .locator-map-help {
@@ -309,8 +310,8 @@
     }
 
     label {
-      font-size: 0.85em;
-      color: @medium-grey;
+      font-size: 1em;
+      color: @dark-grey;
       display: block;
     }
 
@@ -321,7 +322,11 @@
     }
 
     .config-option label {
-      padding-left: 1.15em;
+      padding-left: 1em;
+    }
+
+    .config-option .help {
+      padding-left: 1.5em;
     }
 
     input,
@@ -401,11 +406,13 @@
     }
 
     select {
-      width: 90%;
+      width: 100%;
       margin: 0 auto;
       background-color: @lighter-grey;
       cursor: pointer;
       border-radius: 0;
+      border-left: none;
+      border-right: none;
     }
 
     .config-select {
@@ -578,9 +585,18 @@
         display: inline-block;
       }
 
+      .marker-actions {
+        justify-content: space-between;
+        display: flex;
+
+        .color-picker-foregrounds {
+          margin-right: auto;
+        }
+      }
+
       .color-picker {
         display: inline-block;
-        max-width: 4.25em;
+        max-width: 5em;
         line-height: 0.8em;
 
         .color-picker-item {
@@ -615,7 +631,7 @@
         }
 
         .drawing-option {
-          width: 40%;
+          width: 5.5em;
         }
 
         .color-picker {

@@ -1,15 +1,15 @@
 {
   "name": "locator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "In browser locator map generator",
   "main": "dist/locator.js",
   "dependencies": {
     "leaflet": "0.7.7",
     "leaflet-draw": "^0.3.2",
     "leaflet-minimap": "^3.3.1",
+    "lodash": "^4.14.2",
     "ractive": "^0.7.3",
-    "ractive-events-tap": "^0.3.1",
-    "underscore": "^1.8.3"
+    "ractive-events-tap": "^0.3.1"
   },
   "devDependencies": {
     "gulp": "^3.9.0",

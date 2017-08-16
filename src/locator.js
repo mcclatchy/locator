@@ -5,8 +5,10 @@
 
 // Dependencies
 var L = require("leaflet");
+L.BingLayer = require("../libs/leaflet-plugins.bing.js").BingLayer;
+
 var html2canvas = require("../libs/html2canvas.js");
-var _ = require("underscore");
+var _ = require("lodash");
 var Ractive = require("ractive");
 
 // Additions
@@ -15,9 +17,14 @@ require("../libs/ractive-transitions-slide.js");
 require("leaflet-draw");
 require("leaflet-minimap");
 
+// Parts
+var utils = require("./js/utils.js");
+var dom = require("./js/dom.js");
+var geocode = require("./js/geocode.js");
+
 // Main contructor
 var Locator = function(options) {
-  this.options = this.extend({
+  this.options = _.extend({
     // Template
     template: "REPLACE-DEFAULT-TEMPLATE",
 
@@ -31,6 +38,10 @@ var Locator = function(options) {
         url: "http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
         attribution: "&copy; <a target=\"_blank\" href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, &copy; <a target=\"_blank\" href=\"http://cartodb.com/attributions\">CartoDB</a>"
       },
+      "CartoDB Positron Dark": {
+        url: "http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        attribution: "&copy; <a target=\"_blank\" href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, &copy; <a target=\"_blank\" href=\"http://cartodb.com/attributions\">CartoDB</a>"
+      },
       "Stamen Toner": {
         url: "http://tile.stamen.com/toner/{z}/{x}/{y}.png",
         attribution: "Map tiles by <a target=\"_blank\" href=\"http://stamen.com\">Stamen Design</a>, under <a  target=\"_blank\" href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>. Data by <a  target=\"_blank\" href=\"http://openstreetmap.org\">OpenStreetMap</a>, under <a target=\"_blank\" href=\"http://www.openstreetmap.org/copyright\">ODbL</a>"
@@ -39,13 +50,32 @@ var Locator = function(options) {
         url: "https://api.mapbox.com/v4/jkeefe.np44bm6o/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
         attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
       },
+      "Mapbox Run, Bike, Hike (via WNYC)": {
+        url: "https://api.mapbox.com/v4/jkeefe.oee1c53c/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
+        attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+      },
       "Mapbox Satellite (via WNYC)": {
         url: "https://api.mapbox.com/v4/jkeefe.oee0fah0/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
         attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>; &copy; <a target='_blank' href='https://www.digitalglobe.com/'>DigitalGlobe</a>"
       },
-      "Mapbox Run, Bike, Hike (via WNYC)": {
-        url: "https://api.mapbox.com/v4/jkeefe.oee1c53c/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
-        attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+      "Bing Maps Ariel (via WNYC)": {
+        type: "BingLayer",
+        // Don't steal, OK
+        key: "Aj4s_S9wMF1L8vcqCP7_ZWxtllCsUhD-LB8LY4KIOrkzHuMguY8NoZ_Gk4_lf4oD",
+        options: {
+          type: "Aerial",
+        },
+        attribution: "&copy; Bing",
+        preview: "https://ecn.t2.tiles.virtualearth.net/tiles/a0320101103.jpeg?g=5306"
+      },
+      "Bing Maps Aerial w/ Labels (via WNYC)": {
+        type: "BingLayer",
+        key: "Aj4s_S9wMF1L8vcqCP7_ZWxtllCsUhD-LB8LY4KIOrkzHuMguY8NoZ_Gk4_lf4oD",
+        options: {
+          type: "AerialWithLabels",
+        },
+        attribution: "&copy; Bing",
+        preview: "https://ecn.t2.tiles.virtualearth.net/tiles/h0320101103.jpeg?g=5306&mkt="
       },
 
       // Example of just url
@@ -54,7 +84,7 @@ var Locator = function(options) {
     tileset: "CartoDB Positron",
     zoom: 17,
     minZoom: 1,
-    maxZoom: 18,
+    maxZoom: 20,
     lat: 40.74844,
     lng: -73.98566,
 
@@ -84,6 +114,8 @@ var Locator = function(options) {
       shadowOffsetX: 1,
       shadowOffsetY: 1
     },
+    miniAimingMinWidth: 8,
+    miniAimingMinHeight: 6,
 
     // Markers
     markers: [{
@@ -181,7 +213,7 @@ var Locator = function(options) {
     markerToCenter: true,
 
     // Basic defalt geocoder with Google
-    geocoder: this.defaultGeocoder,
+    geocoder: geocode.google,
 
     // Super class is just a top level class that goes in the markup
     // that is helpful for dynamic options and preDraw and styling
@@ -211,7 +243,7 @@ var Locator = function(options) {
   this.updateOptions();
 
   // We may want to reset
-  this.originalOptions = this.clone(this.options);
+  this.originalOptions = utils.clone(this.options);
 
   // Attempt to load saved options
   this.options = this.load(this.options);
@@ -478,14 +510,13 @@ _.extend(Locator.prototype, {
     this.map = new L.Map(mapEl.id, {
       minZoom: this.options.minZoom,
       maxZoom: this.options.maxZoom,
-      attributionControl: false
+      attributionControl: false,
+      trackResize: false
     });
     this.map.setView([view[0], view[1]], view[2]);
 
     // Tile layer
-    this.mapLayer = new L.TileLayer(this.options.tilesets[this.options.tileset].url, {
-      zIndex: -100
-    });
+    this.mapLayer = this.makeTileLayer(this.options.tilesets[this.options.tileset], -100);
     this.map.addLayer(this.mapLayer);
 
     // React to map view change except when drawing
@@ -654,7 +685,7 @@ _.extend(Locator.prototype, {
       +this.options.miniHeight.replace("h", "") / 100 * h;
 
     // Create layer for minimap
-    this.minimapLayer = new L.TileLayer(this.options.tilesets[this.options.tileset].url);
+    this.minimapLayer = this.makeTileLayer(this.options.tilesets[this.options.tileset]);
 
     // Create control
     this.miniMap = new L.Control.MiniMap(this.minimapLayer, {
@@ -685,6 +716,22 @@ _.extend(Locator.prototype, {
     });
   },
 
+  // Make tile layer
+  makeTileLayer: function(tileset, zIndex) {
+    var options = tileset.options ? _.clone(tileset.options) : {};
+    options = zIndex ? _.extend(options, { zIndex: zIndex }) : options;
+    var mapLayer;
+
+    if (tileset.type === "BingLayer") {
+      mapLayer = new L.BingLayer(tileset.key, options);
+    }
+    else {
+      mapLayer = new L.TileLayer(tileset.url, options);
+    }
+
+    return mapLayer;
+  },
+
   // Minimap custom canvas layer
   drawMiniCanvasLayer: function(styles) {
     this.miniCanvasLayer = L.tileLayer.canvas();
@@ -711,10 +758,20 @@ _.extend(Locator.prototype, {
         var bounds = this.map.getBounds();
         var nw = this.map.project(bounds.getNorthWest(), zoom, true);
         var se = this.map.project(bounds.getSouthEast(), zoom, true);
+        var width = this.options.miniAimingMinWidth ?
+          Math.max(this.options.miniAimingMinWidth, se.x - nw.x) :
+          se.x - nw.x;
+        var height = this.options.miniAimingMinHeight ?
+          Math.max(this.options.miniAimingMinHeight, se.y - nw.y) :
+          se.y - nw.y;
+        var adjustX = this.options.miniAimingMinWidth && width > se.x - nw.x ?
+          ((se.x - nw.x) - width) / 2 : 0;
+        var adjustY = this.options.miniAimingMinHeight && height > se.y - nw.y ?
+          ((se.y - nw.y) - height) / 2 : 0;
 
         // Draw box
         ctx.beginPath();
-        ctx.rect(nw.x - dim.nwPoint.x, nw.y - dim.nwPoint.y, se.x - nw.x, se.y - nw.y);
+        ctx.rect(nw.x - dim.nwPoint.x + adjustX, nw.y - dim.nwPoint.y + adjustY, width, height);
         ctx = this.leafletStylesToCanvas(styles, ctx);
         ctx.closePath();
       }
@@ -1108,7 +1165,7 @@ _.extend(Locator.prototype, {
       this.options.markers[0].text : "";
     var download = this.getEl(".download-link");
     download.href = mapCtx.canvas.toDataURL();
-    download.download = this.makeID(name) + ".png";
+    download.download = utils.makeID(name) + ".png";
     download.click();
   },
 
@@ -1158,7 +1215,7 @@ _.extend(Locator.prototype, {
 
   // Save
   save: function(history) {
-    var options = this.clone(this.options);
+    var options = utils.clone(this.options);
 
     // Remove some parts
     delete options.draggableMarker;
@@ -1178,7 +1235,7 @@ _.extend(Locator.prototype, {
         this.history = this.history.slice(0, this.historyIndex + 1);
       }
 
-      this.history.push(this.clone(options));
+      this.history.push(utils.clone(options));
       this.historyIndex = this.history.length - 1;
       this.canDo();
     }
@@ -1189,7 +1246,7 @@ _.extend(Locator.prototype, {
     var savedOptions = window.localStorage.getItem("options");
     if (savedOptions) {
       savedOptions = JSON.parse(savedOptions);
-      return this.extend(options, savedOptions);
+      return _.extend(options, savedOptions);
     }
     else {
       return options;
@@ -1198,14 +1255,14 @@ _.extend(Locator.prototype, {
 
   // Reset all options
   reset: function() {
-    this.options = this.extend(this.options, this.clone(this.originalOptions));
+    this.options = _.extend(this.options, utils.clone(this.originalOptions));
   },
 
   // Undo
   undo: function() {
     if (this.historyIndex > 0) {
       this.historyIndex = this.historyIndex - 1;
-      this.options = this.extend(this.options, this.clone(this.history[this.historyIndex]));
+      this.options = _.extend(this.options, utils.clone(this.history[this.historyIndex]));
     }
 
     this.canDo();
@@ -1215,7 +1272,7 @@ _.extend(Locator.prototype, {
   redo: function() {
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex = this.historyIndex + 1;
-      this.options = this.extend(this.options, this.clone(this.history[this.historyIndex]));
+      this.options = _.extend(this.options, utils.clone(this.history[this.historyIndex]));
     }
 
     this.canDo();
@@ -1229,28 +1286,6 @@ _.extend(Locator.prototype, {
     });
   },
 
-  // A vrey crude geocoder that uses Google goeocoding
-  defaultGeocoder: function(address, done) {
-    var httpRequest = new XMLHttpRequest();
-    var url = "https://maps.googleapis.com/maps/api/geocode/json?address=" + encodeURIComponent(address);
-    var once = _.once(done);
-
-    httpRequest.onreadystatechange = function() {
-      var data;
-
-      if (httpRequest.status === 200 && httpRequest.responseText) {
-        data = JSON.parse(httpRequest.responseText);
-
-        if (data && data.results && data.results.length) {
-          once(data.results[0].geometry.location.lat, data.results[0].geometry.location.lng);
-        }
-      }
-    };
-
-    httpRequest.open("GET", url);
-    httpRequest.send();
-  },
-
   // Standarize tileset options
   parseTilesets: function(tilesets) {
     _.each(tilesets, function(t, ti) {
@@ -1262,8 +1297,7 @@ _.extend(Locator.prototype, {
       }
 
       // Check for preview
-      if (!tilesets[ti].preview) {
-        // Pick a fairly arbitrary tile to use
+      if (!tilesets[ti].preview && tilesets[ti].url) {
         tilesets[ti].preview = tilesets[ti].url.replace("{s}", "a")
           .replace("{x}", "301")
           .replace("{y}", "385")
@@ -1274,126 +1308,16 @@ _.extend(Locator.prototype, {
     return tilesets;
   },
 
-  // Create a slug/id
-  makeID: function(input) {
-    input = input ? input.toString() : "";
-    input = input.toLowerCase().trim().replace(/\W+/g, "-");
-    input = input ? input : "locator";
-    return _.uniqueId(input + "-");
-  },
-
-  // Check if element is overflowed
-  overflowed: function(element, direction) {
-    return (!direction) ?
-      (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) :
-      (direction === "y") ? (element.scrollHeight > element.clientHeight) :
-      (direction === "x") ? (element.scrollWidth > element.clientWidth) : false;
-  },
-
   // Some hackery to fix the map vertical alignment
   fixMapVerticalAlign: function() {
     var display = this.getEl(".locator-display");
 
-    if (this.overflowed(display, "y")) {
+    if (dom.isOverflowed(display, "y")) {
       display.classList.add("overflowed-y");
     }
     else {
       display.classList.remove("overflowed-y");
     }
-  },
-
-  // Extend deep version (simple)
-  // http://andrewdupont.net/2009/08/28/deep-extending-objects-in-javascript/
-  extend: function(destination, source) {
-    if (!_.isObject(destination) && !_.isObject(source)) {
-      return (destination) ? destination : source;
-    }
-
-    _.each(source, _.bind(function(s, property) {
-      // Basic object
-      if (source[property] && source[property].constructor &&
-       source[property].constructor === Object) {
-        destination[property] = destination[property] || {};
-        this.extend(destination[property], source[property]);
-      }
-
-      // Array
-      else if (_.isArray(source[property])) {
-        destination[property] = [];
-        _.each(source[property], _.bind(function(v, i) {
-          destination[property][i] = this.extend(source[property][i]);
-        }, this));
-      }
-      else {
-        destination[property] = source[property];
-      }
-    }, this));
-
-    return destination;
-  },
-
-  // Deep clone
-  // http://stackoverflow.com/questions/4459928/how-to-deep-clone-in-javascript
-  clone: function clone(item) {
-    if (!item) {
-      return item;
-    }
-
-    var types = [Number, String, Boolean];
-    var result;
-    var _this = this;
-
-    // normalizing primitives if someone did new String('aaa'), or new Number('444');
-    types.forEach(function(type) {
-      if (item instanceof type) {
-        result = type(item);
-      }
-    });
-
-    if (typeof result === "undefined") {
-      // Check array
-      if (Object.prototype.toString.call(item) === "[object Array]") {
-        result = [];
-        item.forEach(function(child, index) {
-          result[index] = _this.clone(child);
-        });
-      }
-
-      // Object
-      else if (typeof item === "object") {
-        // testing that this is DOM
-        if (item.nodeType && typeof item.cloneNode === "function") {
-          result = item.cloneNode(true);
-        }
-
-        // Literal possible
-        else if (!item.prototype) {
-          // Date
-          if (item instanceof Date) {
-            result = new Date(item);
-          }
-          else {
-            // it is an object literal
-            result = {};
-            _.each(item, function(v, i) {
-              result[i] = _this.clone(item[i]);
-            });
-          }
-        }
-
-        // Other object
-        else {
-          result = item;
-        }
-      }
-
-      // Something way different
-      else {
-        result = item;
-      }
-    }
-
-    return result;
   }
 });
 

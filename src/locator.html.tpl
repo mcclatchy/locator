@@ -35,7 +35,7 @@
 
   <section class="locator-controls">
     <div class="minor-controls">
-      <div class="toggle-controls" on-tap="toggle:'noGenerate.controlsOpen'"></div>
+      <div class="toggle-controls" on-tap="toggle:'noGenerate.controlsOpen'" title="{{#noGenerate.controlsOpen}}Hide controls and preview{{ else }}Show controls{{/noGenerate.controlsOpen}}"></div>
 
       <button class="minor-button minor-generate" on-tap="generate" title="Generate"><i class="fa fa-download"></i></button>
     </div>
@@ -61,8 +61,8 @@
 
         {{#options.geocoder}}
           <div class="config-option">
-            <label>Search location by address, or input latitude,longitude.</label>
-            <input type="text" placeholder="Address or place" value="{{ geocodeInput }}" lazy disabled="{{ isGeocoding }}">
+            <label>Search</label>
+            <input type="text" placeholder="Address or lat,lng" value="{{ geocodeInput }}" lazy disabled="{{ isGeocoding }}">
           </div>
         {{/options.geocoder}}
 
@@ -80,32 +80,32 @@
               </div>
 
               <div class="marker-actions">
-                {{#options.markerToCenter}}
-                  <button class="action small" on-tap="marker-to-center:{{ mi }}" title="Move marker to center of map"><i class="fa fa-compass"></i></button>
-                {{/}}
-
-                {{#options.centerToMarker}}
-                  <button class="action small" on-tap="center-to-marker:{{ mi }}" title="Center map on marker"><i class="fa fa-plus-square-o"></i></button>
-                {{/}}
-
                 {{#(_.size(options.markerBackgrounds) > 1)}}
-                  <div class="color-picker" title="Set marker background color">
+                  <div class="color-picker color-picker-backgrounds" title="Set marker background color">
                     {{#options.markerBackgrounds:bi}}
                       <div class="color-picker-item {{#(options.markers[mi] && options.markers[mi].background === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}"
                         style="background-color: {{ this }}"
                         on-tap="setMarker:{{ mi }},'background',{{ this }}">
                     {{/}}
-                  </div>
+                  </div>&nbsp;
                 {{/}}
 
                 {{#(_.size(options.markerForegrounds) > 1)}}
-                  <div class="color-picker" title="Set marker foreground color">
+                  <div class="color-picker color-picker-foregrounds" title="Set marker foreground color">
                     {{#options.markerForegrounds:bi}}
                       <div class="color-picker-item {{#(options.markers[mi] && options.markers[mi].foreground === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}"
                         style="background-color: {{ this }}"
                         on-tap="setMarker:{{ mi }},'foreground',{{ this }}">
                     {{/}}
                   </div>
+                {{/}}
+
+                {{#options.markerToCenter}}
+                  <button class="action small" on-tap="marker-to-center:{{ mi }}" title="Move marker to center of map"><i class="fa fa-compass"></i></button>&nbsp;
+                {{/}}
+
+                {{#options.centerToMarker}}
+                  <button class="action small" on-tap="center-to-marker:{{ mi }}" title="Center map on marker"><i class="fa fa-plus-square-o"></i></button>&nbsp;
                 {{/}}
 
                 <button class="destructive small" on-tap="remove-marker:{{ mi }}" title="Remove marker"><i class="fa fa-close"></i></button>
@@ -116,7 +116,7 @@
 
         {{#options.drawing}}
           <div class="drawing">
-            <label class="markers-label">Drawing</label>
+            <label class="markers-label">Shapes</label>
             <div class="help">Use the buttons on the map to draw shapes.</div>
 
             <div class="drawing-section">
@@ -130,7 +130,7 @@
                   {{#options.drawingStrokes:di}}
                     <div class="color-picker-item {{#(options.drawingStyles.color === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}"
                       style="background-color: {{ this }}"
-                      on-tap="setDrawing:'color',{{ this }}">
+                      on-tap="setDrawing:'color',{{ this }}"></div>
                   {{/}}
                 </div>
               {{/}}
@@ -147,7 +147,7 @@
                   {{#options.drawingFills:di}}
                     <div class="color-picker-item {{#(options.drawingStyles.fillColor === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}"
                       style="background-color: {{ this }}"
-                      on-tap="setDrawing:'fillColor',{{ this }}">
+                      on-tap="setDrawing:'fillColor',{{ this }}"></div>
                   {{/}}
                 </div>
               {{/}}
@@ -157,7 +157,7 @@
 
         {{#(_.size(options.tilesets) > 1)}}
           <div class="config-option">
-            <label>Background map set</label>
+            <label>Background</label>
 
             <div class="image-picker images-{{ _.size(options.tilesets) }}">
               {{#options.tilesets:i}}
@@ -198,7 +198,7 @@
 
             {{#options.mini}}
               <label>Mini-map zoom level</label>
-              <input type="range" min="-10" max="1" value="{{ options.miniZoomOffset }}" title="Adjust zoom level for map">
+              <input type="range" min="-20" max="1" value="{{ options.miniZoomOffset }}" title="Adjust zoom level for map">
             {{/options.mini}}
           </div>
         {{/options.miniControl}}

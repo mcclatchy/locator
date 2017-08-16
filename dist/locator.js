@@ -1,6 +1,6 @@
 /**
  * locator - In browser locator map generator
- * @version v0.0.1
+ * @version v0.0.2
  * @link https://github.com/datanews/locator#readme
  * @license MIT
  * @notes External libraries may be bundled here and their respective, original license applies.
@@ -2887,6 +2887,151 @@ _html2canvas.Renderer.Canvas = function(options) {
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],3:[function(_dereq_,module,exports){
+/**
+ * Adapted from here to be able to work with require()
+ * https://github.com/shramov/leaflet-plugins/blob/master/layer/tile/Bing.js
+ */
+
+var L = _dereq_("leaflet");
+
+var BingLayer = L.TileLayer.extend({
+	options: {
+		subdomains: [0, 1, 2, 3],
+		type: 'Aerial',
+		attribution: 'Bing',
+		culture: ''
+	},
+
+	initialize: function (key, options) {
+		L.Util.setOptions(this, options);
+
+		this._key = key;
+		this._url = null;
+		this._providers = [];
+		this.metaRequested = false;
+	},
+
+	tile2quad: function (x, y, z) {
+		var quad = '';
+		for (var i = z; i > 0; i--) {
+			var digit = 0;
+			var mask = 1 << (i - 1);
+			if ((x & mask) !== 0) digit += 1;
+			if ((y & mask) !== 0) digit += 2;
+			quad = quad + digit;
+		}
+		return quad;
+	},
+
+	getTileUrl: function (tilePoint) {
+		var zoom = this._getZoomForUrl();
+		var subdomains = this.options.subdomains,
+			s = this.options.subdomains[Math.abs((tilePoint.x + tilePoint.y) % subdomains.length)];
+		return this._url.replace('{subdomain}', s)
+				.replace('{quadkey}', this.tile2quad(tilePoint.x, tilePoint.y, zoom))
+				.replace('{culture}', this.options.culture);
+	},
+
+	loadMetadata: function () {
+		if (this.metaRequested) return;
+		this.metaRequested = true;
+		var _this = this;
+		var cbid = '_bing_metadata_' + L.Util.stamp(this);
+		window[cbid] = function (meta) {
+			window[cbid] = undefined;
+			var e = document.getElementById(cbid);
+			e.parentNode.removeChild(e);
+			if (meta.errorDetails) {
+				throw new Error(meta.errorDetails);
+				return;
+			}
+			_this.initMetadata(meta);
+		};
+		var urlScheme = (document.location.protocol === 'file:') ? 'http' : document.location.protocol.slice(0, -1);
+		var url = urlScheme + '://dev.virtualearth.net/REST/v1/Imagery/Metadata/'
+					+ this.options.type + '?include=ImageryProviders&jsonp=' + cbid +
+					'&key=' + this._key + '&UriScheme=' + urlScheme;
+		var script = document.createElement('script');
+		script.type = 'text/javascript';
+		script.src = url;
+		script.id = cbid;
+		document.getElementsByTagName('head')[0].appendChild(script);
+	},
+
+	initMetadata: function (meta) {
+		var r = meta.resourceSets[0].resources[0];
+		this.options.subdomains = r.imageUrlSubdomains;
+		this._url = r.imageUrl;
+		if (r.imageryProviders) {
+			for (var i = 0; i < r.imageryProviders.length; i++) {
+				var p = r.imageryProviders[i];
+				for (var j = 0; j < p.coverageAreas.length; j++) {
+					var c = p.coverageAreas[j];
+					var coverage = {zoomMin: c.zoomMin, zoomMax: c.zoomMax, active: false};
+					var bounds = new L.LatLngBounds(
+							new L.LatLng(c.bbox[0]+0.01, c.bbox[1]+0.01),
+							new L.LatLng(c.bbox[2]-0.01, c.bbox[3]-0.01)
+					);
+					coverage.bounds = bounds;
+					coverage.attrib = p.attribution;
+					this._providers.push(coverage);
+				}
+			}
+		}
+		this._update();
+	},
+
+	_update: function () {
+		if (this._url === null || !this._map) return;
+		this._update_attribution();
+		L.TileLayer.prototype._update.apply(this, []);
+	},
+
+	_update_attribution: function () {
+		var bounds = L.latLngBounds(this._map.getBounds().getSouthWest().wrap(),this._map.getBounds().getNorthEast().wrap());
+		var zoom = this._map.getZoom();
+		for (var i = 0; i < this._providers.length; i++) {
+			var p = this._providers[i];
+			if ((zoom <= p.zoomMax && zoom >= p.zoomMin) &&
+					bounds.intersects(p.bounds)) {
+				if (!p.active && this._map.attributionControl)
+					this._map.attributionControl.addAttribution(p.attrib);
+				p.active = true;
+			} else {
+				if (p.active && this._map.attributionControl)
+					this._map.attributionControl.removeAttribution(p.attrib);
+				p.active = false;
+			}
+		}
+	},
+
+	onAdd: function (map) {
+		this.loadMetadata();
+		L.TileLayer.prototype.onAdd.apply(this, [map]);
+	},
+
+	onRemove: function (map) {
+		for (var i = 0; i < this._providers.length; i++) {
+			var p = this._providers[i];
+			if (p.active && this._map.attributionControl) {
+				this._map.attributionControl.removeAttribution(p.attrib);
+				p.active = false;
+			}
+		}
+		L.TileLayer.prototype.onRemove.apply(this, [map]);
+	}
+});
+
+var bingLayer = function (key, options) {
+    return new BingLayer(key, options);
+};
+
+module.exports = {
+  BingLayer: BingLayer,
+  bingLayer: bingLayer
+};
+
+},{}],4:[function(_dereq_,module,exports){
 /*
 
 	ractive-transitions-slide
@@ -3003,7 +3148,7 @@ _html2canvas.Renderer.Canvas = function(options) {
 
 }));
 
-},{}],4:[function(_dereq_,module,exports){
+},{}],5:[function(_dereq_,module,exports){
 /**
  * Main locator file
  */
@@ -3011,8 +3156,10 @@ _html2canvas.Renderer.Canvas = function(options) {
 
 // Dependencies
 var L = _dereq_("leaflet");
+L.BingLayer = _dereq_("../libs/leaflet-plugins.bing.js").BingLayer;
+
 var html2canvas = _dereq_("../libs/html2canvas.js");
-var _ = _dereq_("underscore");
+var _ = _dereq_("lodash");
 var Ractive = _dereq_("ractive");
 
 // Additions
@@ -3021,11 +3168,16 @@ _dereq_("../libs/ractive-transitions-slide.js");
 _dereq_("leaflet-draw");
 _dereq_("leaflet-minimap");
 
+// Parts
+var utils = _dereq_("./js/utils.js");
+var dom = _dereq_("./js/dom.js");
+var geocode = _dereq_("./js/geocode.js");
+
 // Main contructor
 var Locator = function(options) {
-  this.options = this.extend({
+  this.options = _.extend({
     // Template
-    template: " <link rel=\"stylesheet\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css\">  <div class=\"locator {{ (noGenerate.controlsOpen) ? 'controls-open' : 'controls-closed' }} {{ options.superClass }}\">  <section class=\"locator-display\">  <div class=\"locator-map-wrapper\">  <div class=\"locator-display-inner\">  <div class=\"locator-map\">  <div class=\"locator-map-attribution {{#options.embedAttribution}}enabled{{/}}\">  {{#options.overrideAttribution}}  {{{ options.overrideAttribution }}}  {{/}}  {{^options.overrideAttribution}}  {{{ options.tilesets[options.tileset].attribution }}}  {{/}}  </div>  </div>   <div class=\"locator-map-help\">  Move the marker by dragging the base.   {{#options.drawing}}  Use the buttons to draw shapes on the map.  {{/drawing}}   {{#(options.tilesets[options.tileset] && options.tilesets[options.tileset].attribution)}}  Required attribution for this map: <br>  <span class=\"attribution\">{{{ options.tilesets[options.tileset].attribution }}}</span>  {{/()}}  </div>  </div>  </div>  </section>    <section class=\"locator-controls\">  <div class=\"minor-controls\">  <div class=\"toggle-controls\" on-tap=\"toggle:'noGenerate.controlsOpen'\"></div>   <button class=\"minor-button minor-generate\" on-tap=\"generate\" title=\"Generate\"><i class=\"fa fa-download\"></i></button>  </div>   <div class=\"locator-controls-wrapper\">  <header>{{{ options.title }}}</header>   <div class=\"locator-input\">  <div class=\"locator-history\">  <button class=\"small inline action undo\" disabled=\"{{ !canUndo }}\" title=\"Undo\" on-tap=\"undo\"><i class=\"fa fa-rotate-left\"></i></button>  <button class=\"small inline action redo\" disabled=\"{{ !canRedo }}\" title=\"Redo\" on-tap=\"redo\"><i class=\"fa fa-rotate-right\"></i></button>  <button class=\"small inline destructive reset\" title=\"Reset all options\" on-tap=\"resetOptions\"><i class=\"fa fa-refresh\"></i></button>  </div>   {{^options.geocoder}}  <div class=\"config-option\">  <label>Latitude and longitude location</label>   <br><input type=\"number\" placeholder=\"Latitude\" value=\"{{ options.lat }}\" lazy>  <br><input type=\"number\" placeholder=\"Longitude\" value=\"{{ options.lng }}\" lazy>  </div>  {{/options.geocoder}}   {{#options.geocoder}}  <div class=\"config-option\">  <label>Search location by address, or input latitude,longitude.</label>  <input type=\"text\" placeholder=\"Address or place\" value=\"{{ geocodeInput }}\" lazy disabled=\"{{ isGeocoding }}\">  </div>  {{/options.geocoder}}   <div class=\"markers {{^options.markers}}no-markers{{/}}\">  <label class=\"no-markers-label\">Markers</label>  <button class=\"add-marker action small inline\" on-tap=\"add-marker\" title=\"Add marker at center of map\"><i class=\"fa fa-plus\"></i></button>   <label class=\"markers-label\">Markers</label>  <div class=\"help\">Use <code>&lt;br&gt;</code> to make line breaks.</div>   {{#options.markers:mi}}  <div class=\"marker\" intro-outro=\"slide\">  <div class=\"config-option\">  <input type=\"text\" placeholder=\"Marker label\" value=\"{{ this.text }}\" lazy>  </div>   <div class=\"marker-actions\">  {{#options.markerToCenter}}  <button class=\"action small\" on-tap=\"marker-to-center:{{ mi }}\" title=\"Move marker to center of map\"><i class=\"fa fa-compass\"></i></button>  {{/}}   {{#options.centerToMarker}}  <button class=\"action small\" on-tap=\"center-to-marker:{{ mi }}\" title=\"Center map on marker\"><i class=\"fa fa-plus-square-o\"></i></button>  {{/}}   {{#(_.size(options.markerBackgrounds) > 1)}}  <div class=\"color-picker\" title=\"Set marker background color\">  {{#options.markerBackgrounds:bi}}  <div class=\"color-picker-item {{#(options.markers[mi] && options.markers[mi].background === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setMarker:{{ mi }},'background',{{ this }}\">  {{/}}  </div>  {{/}}   {{#(_.size(options.markerForegrounds) > 1)}}  <div class=\"color-picker\" title=\"Set marker foreground color\">  {{#options.markerForegrounds:bi}}  <div class=\"color-picker-item {{#(options.markers[mi] && options.markers[mi].foreground === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setMarker:{{ mi }},'foreground',{{ this }}\">  {{/}}  </div>  {{/}}   <button class=\"destructive small\" on-tap=\"remove-marker:{{ mi }}\" title=\"Remove marker\"><i class=\"fa fa-close\"></i></button>  </div>  </div>  {{/}}  </div>   {{#options.drawing}}  <div class=\"drawing\">  <label class=\"markers-label\">Drawing</label>  <div class=\"help\">Use the buttons on the map to draw shapes.</div>   <div class=\"drawing-section\">  <div class=\"drawing-option\">  <input type=\"checkbox\" checked=\"{{ options.drawingStyles.stroke }}\" id=\"drawing-styles-stroke\" lazy>  <label for=\"drawing-styles-stroke\">Stroke</label>  </div>   {{#(_.size(options.drawingStrokes) > 1 && options.drawingStyles.stroke)}}  <div class=\"color-picker\" title=\"Set drawing stroke color\">  {{#options.drawingStrokes:di}}  <div class=\"color-picker-item {{#(options.drawingStyles.color === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setDrawing:'color',{{ this }}\">  {{/}}  </div>  {{/}}  </div>   <div class=\"drawing-section\">  <div class=\"drawing-option\">  <input type=\"checkbox\" checked=\"{{ options.drawingStyles.fill }}\" id=\"drawing-styles-fill\" lazy>  <label for=\"drawing-styles-fill\">Fill</label>  </div>   {{#(_.size(options.drawingStrokes) > 1 && options.drawingStyles.fill)}}  <div class=\"color-picker\" title=\"Set drawing fill color\">  {{#options.drawingFills:di}}  <div class=\"color-picker-item {{#(options.drawingStyles.fillColor === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setDrawing:'fillColor',{{ this }}\">  {{/}}  </div>  {{/}}  </div>  </div>  {{/options.drawing}}   {{#(_.size(options.tilesets) > 1)}}  <div class=\"config-option\">  <label>Background map set</label>   <div class=\"image-picker images-{{ _.size(options.tilesets) }}\">  {{#options.tilesets:i}}  <div class=\"image-picker-item {{ (options.tileset === i) ? 'active' : 'inactive' }}\" style=\"background-image: url({{= preview }});\" title=\"{{ i }}\" on-tap=\"set:'options.tileset',{{ i }}\"></div>  {{/options.tilesets}}  </div>  </div>  {{/()}}   {{#(_.size(options.widths) > 1)}}  <div class=\"config-option config-select\">  <label>Map width</label>   <select value=\"{{ options.width }}\">  {{#options.widths:i}}  <option value=\"{{ i }}\">{{ i }}</option>  {{/options.widths}}  </select>  </div>  {{/()}}   {{#(_.size(options.ratios) > 1)}}  <div class=\"config-option config-select\">  <label>Map aspect ratio</label>   <select value=\"{{ options.ratio }}\">  {{#options.ratios:i}}  <option value=\"{{ i }}\">{{ i }}</option>  {{/options.ratios}}  </select>  </div>  {{/()}}   {{#options.miniControl}}  <div class=\"config-option\">  <input type=\"checkbox\" checked=\"{{ options.mini }}\" id=\"config-mini\" lazy>  <label for=\"config-mini\">Mini-map</label>   {{#options.mini}}  <label>Mini-map zoom level</label>  <input type=\"range\" min=\"-10\" max=\"1\" value=\"{{ options.miniZoomOffset }}\" title=\"Adjust zoom level for map\">  {{/options.mini}}  </div>  {{/options.miniControl}}   <div class=\"config-option\">  <input type=\"checkbox\" checked=\"{{ options.embedAttribution }}\" id=\"config-embed-attribution\" lazy>  <label for=\"config-embed-attribution\">Embed attribution</label>   <input type=\"text\" placeholder=\"Override attribution\" value=\"{{ options.overrideAttribution }}\" lazy>  </div>   <div class=\"config-action\">  <button class=\"large additive generate-image\" on-tap=\"generate\">Generate <i class=\"fa fa-download\"></i></button>  </div>   <div class=\"preview\">  <h1>Preview</h1>  <img src=\"\" /><br>  <a href=\"\" class=\"download-link\">Download</a>  </div>  </div>   <footer>  {{{ options.footer }}}  </footer>  </div>  </section> </div> ",
+    template: " <link rel=\"stylesheet\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css\">  <div class=\"locator {{ (noGenerate.controlsOpen) ? 'controls-open' : 'controls-closed' }} {{ options.superClass }}\">  <section class=\"locator-display\">  <div class=\"locator-map-wrapper\">  <div class=\"locator-display-inner\">  <div class=\"locator-map\">  <div class=\"locator-map-attribution {{#options.embedAttribution}}enabled{{/}}\">  {{#options.overrideAttribution}}  {{{ options.overrideAttribution }}}  {{/}}  {{^options.overrideAttribution}}  {{{ options.tilesets[options.tileset].attribution }}}  {{/}}  </div>  </div>   <div class=\"locator-map-help\">  Move the marker by dragging the base.   {{#options.drawing}}  Use the buttons to draw shapes on the map.  {{/drawing}}   {{#(options.tilesets[options.tileset] && options.tilesets[options.tileset].attribution)}}  Required attribution for this map: <br>  <span class=\"attribution\">{{{ options.tilesets[options.tileset].attribution }}}</span>  {{/()}}  </div>  </div>  </div>  </section>    <section class=\"locator-controls\">  <div class=\"minor-controls\">  <div class=\"toggle-controls\" on-tap=\"toggle:'noGenerate.controlsOpen'\" title=\"{{#noGenerate.controlsOpen}}Hide controls and preview{{ else }}Show controls{{/noGenerate.controlsOpen}}\"></div>   <button class=\"minor-button minor-generate\" on-tap=\"generate\" title=\"Generate\"><i class=\"fa fa-download\"></i></button>  </div>   <div class=\"locator-controls-wrapper\">  <header>{{{ options.title }}}</header>   <div class=\"locator-input\">  <div class=\"locator-history\">  <button class=\"small inline action undo\" disabled=\"{{ !canUndo }}\" title=\"Undo\" on-tap=\"undo\"><i class=\"fa fa-rotate-left\"></i></button>  <button class=\"small inline action redo\" disabled=\"{{ !canRedo }}\" title=\"Redo\" on-tap=\"redo\"><i class=\"fa fa-rotate-right\"></i></button>  <button class=\"small inline destructive reset\" title=\"Reset all options\" on-tap=\"resetOptions\"><i class=\"fa fa-refresh\"></i></button>  </div>   {{^options.geocoder}}  <div class=\"config-option\">  <label>Latitude and longitude location</label>   <br><input type=\"number\" placeholder=\"Latitude\" value=\"{{ options.lat }}\" lazy>  <br><input type=\"number\" placeholder=\"Longitude\" value=\"{{ options.lng }}\" lazy>  </div>  {{/options.geocoder}}   {{#options.geocoder}}  <div class=\"config-option\">  <label>Search</label>  <input type=\"text\" placeholder=\"Address or lat,lng\" value=\"{{ geocodeInput }}\" lazy disabled=\"{{ isGeocoding }}\">  </div>  {{/options.geocoder}}   <div class=\"markers {{^options.markers}}no-markers{{/}}\">  <label class=\"no-markers-label\">Markers</label>  <button class=\"add-marker action small inline\" on-tap=\"add-marker\" title=\"Add marker at center of map\"><i class=\"fa fa-plus\"></i></button>   <label class=\"markers-label\">Markers</label>  <div class=\"help\">Use <code>&lt;br&gt;</code> to make line breaks.</div>   {{#options.markers:mi}}  <div class=\"marker\" intro-outro=\"slide\">  <div class=\"config-option\">  <input type=\"text\" placeholder=\"Marker label\" value=\"{{ this.text }}\" lazy>  </div>   <div class=\"marker-actions\">  {{#(_.size(options.markerBackgrounds) > 1)}}  <div class=\"color-picker color-picker-backgrounds\" title=\"Set marker background color\">  {{#options.markerBackgrounds:bi}}  <div class=\"color-picker-item {{#(options.markers[mi] && options.markers[mi].background === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setMarker:{{ mi }},'background',{{ this }}\">  {{/}}  </div>&nbsp;  {{/}}   {{#(_.size(options.markerForegrounds) > 1)}}  <div class=\"color-picker color-picker-foregrounds\" title=\"Set marker foreground color\">  {{#options.markerForegrounds:bi}}  <div class=\"color-picker-item {{#(options.markers[mi] && options.markers[mi].foreground === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setMarker:{{ mi }},'foreground',{{ this }}\">  {{/}}  </div>  {{/}}   {{#options.markerToCenter}}  <button class=\"action small\" on-tap=\"marker-to-center:{{ mi }}\" title=\"Move marker to center of map\"><i class=\"fa fa-compass\"></i></button>&nbsp;  {{/}}   {{#options.centerToMarker}}  <button class=\"action small\" on-tap=\"center-to-marker:{{ mi }}\" title=\"Center map on marker\"><i class=\"fa fa-plus-square-o\"></i></button>&nbsp;  {{/}}   <button class=\"destructive small\" on-tap=\"remove-marker:{{ mi }}\" title=\"Remove marker\"><i class=\"fa fa-close\"></i></button>  </div>  </div>  {{/}}  </div>   {{#options.drawing}}  <div class=\"drawing\">  <label class=\"markers-label\">Shapes</label>  <div class=\"help\">Use the buttons on the map to draw shapes.</div>   <div class=\"drawing-section\">  <div class=\"drawing-option\">  <input type=\"checkbox\" checked=\"{{ options.drawingStyles.stroke }}\" id=\"drawing-styles-stroke\" lazy>  <label for=\"drawing-styles-stroke\">Stroke</label>  </div>   {{#(_.size(options.drawingStrokes) > 1 && options.drawingStyles.stroke)}}  <div class=\"color-picker\" title=\"Set drawing stroke color\">  {{#options.drawingStrokes:di}}  <div class=\"color-picker-item {{#(options.drawingStyles.color === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setDrawing:'color',{{ this }}\"></div>  {{/}}  </div>  {{/}}  </div>   <div class=\"drawing-section\">  <div class=\"drawing-option\">  <input type=\"checkbox\" checked=\"{{ options.drawingStyles.fill }}\" id=\"drawing-styles-fill\" lazy>  <label for=\"drawing-styles-fill\">Fill</label>  </div>   {{#(_.size(options.drawingStrokes) > 1 && options.drawingStyles.fill)}}  <div class=\"color-picker\" title=\"Set drawing fill color\">  {{#options.drawingFills:di}}  <div class=\"color-picker-item {{#(options.drawingStyles.fillColor === this)}}active{{ else }}inactive{{/()}} {{#(this.indexOf('255, 255, 255') !== -1 || this.indexOf('FFFFFF') !== -1)}}is-white{{/()}}\"  style=\"background-color: {{ this }}\"  on-tap=\"setDrawing:'fillColor',{{ this }}\"></div>  {{/}}  </div>  {{/}}  </div>  </div>  {{/options.drawing}}   {{#(_.size(options.tilesets) > 1)}}  <div class=\"config-option\">  <label>Background</label>   <div class=\"image-picker images-{{ _.size(options.tilesets) }}\">  {{#options.tilesets:i}}  <div class=\"image-picker-item {{ (options.tileset === i) ? 'active' : 'inactive' }}\" style=\"background-image: url({{= preview }});\" title=\"{{ i }}\" on-tap=\"set:'options.tileset',{{ i }}\"></div>  {{/options.tilesets}}  </div>  </div>  {{/()}}   {{#(_.size(options.widths) > 1)}}  <div class=\"config-option config-select\">  <label>Map width</label>   <select value=\"{{ options.width }}\">  {{#options.widths:i}}  <option value=\"{{ i }}\">{{ i }}</option>  {{/options.widths}}  </select>  </div>  {{/()}}   {{#(_.size(options.ratios) > 1)}}  <div class=\"config-option config-select\">  <label>Map aspect ratio</label>   <select value=\"{{ options.ratio }}\">  {{#options.ratios:i}}  <option value=\"{{ i }}\">{{ i }}</option>  {{/options.ratios}}  </select>  </div>  {{/()}}   {{#options.miniControl}}  <div class=\"config-option\">  <input type=\"checkbox\" checked=\"{{ options.mini }}\" id=\"config-mini\" lazy>  <label for=\"config-mini\">Mini-map</label>   {{#options.mini}}  <label>Mini-map zoom level</label>  <input type=\"range\" min=\"-20\" max=\"1\" value=\"{{ options.miniZoomOffset }}\" title=\"Adjust zoom level for map\">  {{/options.mini}}  </div>  {{/options.miniControl}}   <div class=\"config-option\">  <input type=\"checkbox\" checked=\"{{ options.embedAttribution }}\" id=\"config-embed-attribution\" lazy>  <label for=\"config-embed-attribution\">Embed attribution</label>   <input type=\"text\" placeholder=\"Override attribution\" value=\"{{ options.overrideAttribution }}\" lazy>  </div>   <div class=\"config-action\">  <button class=\"large additive generate-image\" on-tap=\"generate\">Generate <i class=\"fa fa-download\"></i></button>  </div>   <div class=\"preview\">  <h1>Preview</h1>  <img src=\"\" /><br>  <a href=\"\" class=\"download-link\">Download</a>  </div>  </div>   <footer>  {{{ options.footer }}}  </footer>  </div>  </section> </div> ",
 
     // Text
     title: "Locator demo",
@@ -3037,6 +3189,10 @@ var Locator = function(options) {
         url: "http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
         attribution: "&copy; <a target=\"_blank\" href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, &copy; <a target=\"_blank\" href=\"http://cartodb.com/attributions\">CartoDB</a>"
       },
+      "CartoDB Positron Dark": {
+        url: "http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        attribution: "&copy; <a target=\"_blank\" href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, &copy; <a target=\"_blank\" href=\"http://cartodb.com/attributions\">CartoDB</a>"
+      },
       "Stamen Toner": {
         url: "http://tile.stamen.com/toner/{z}/{x}/{y}.png",
         attribution: "Map tiles by <a target=\"_blank\" href=\"http://stamen.com\">Stamen Design</a>, under <a  target=\"_blank\" href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>. Data by <a  target=\"_blank\" href=\"http://openstreetmap.org\">OpenStreetMap</a>, under <a target=\"_blank\" href=\"http://www.openstreetmap.org/copyright\">ODbL</a>"
@@ -3045,13 +3201,32 @@ var Locator = function(options) {
         url: "https://api.mapbox.com/v4/jkeefe.np44bm6o/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
         attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
       },
+      "Mapbox Run, Bike, Hike (via WNYC)": {
+        url: "https://api.mapbox.com/v4/jkeefe.oee1c53c/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
+        attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+      },
       "Mapbox Satellite (via WNYC)": {
         url: "https://api.mapbox.com/v4/jkeefe.oee0fah0/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
         attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>; &copy; <a target='_blank' href='https://www.digitalglobe.com/'>DigitalGlobe</a>"
       },
-      "Mapbox Run, Bike, Hike (via WNYC)": {
-        url: "https://api.mapbox.com/v4/jkeefe.oee1c53c/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
-        attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+      "Bing Maps Ariel (via WNYC)": {
+        type: "BingLayer",
+        // Don't steal, OK
+        key: "Aj4s_S9wMF1L8vcqCP7_ZWxtllCsUhD-LB8LY4KIOrkzHuMguY8NoZ_Gk4_lf4oD",
+        options: {
+          type: "Aerial",
+        },
+        attribution: "&copy; Bing",
+        preview: "https://ecn.t2.tiles.virtualearth.net/tiles/a0320101103.jpeg?g=5306"
+      },
+      "Bing Maps Aerial w/ Labels (via WNYC)": {
+        type: "BingLayer",
+        key: "Aj4s_S9wMF1L8vcqCP7_ZWxtllCsUhD-LB8LY4KIOrkzHuMguY8NoZ_Gk4_lf4oD",
+        options: {
+          type: "AerialWithLabels",
+        },
+        attribution: "&copy; Bing",
+        preview: "https://ecn.t2.tiles.virtualearth.net/tiles/h0320101103.jpeg?g=5306&mkt="
       },
 
       // Example of just url
@@ -3060,7 +3235,7 @@ var Locator = function(options) {
     tileset: "CartoDB Positron",
     zoom: 17,
     minZoom: 1,
-    maxZoom: 18,
+    maxZoom: 20,
     lat: 40.74844,
     lng: -73.98566,
 
@@ -3090,6 +3265,8 @@ var Locator = function(options) {
       shadowOffsetX: 1,
       shadowOffsetY: 1
     },
+    miniAimingMinWidth: 8,
+    miniAimingMinHeight: 6,
 
     // Markers
     markers: [{
@@ -3187,7 +3364,7 @@ var Locator = function(options) {
     markerToCenter: true,
 
     // Basic defalt geocoder with Google
-    geocoder: this.defaultGeocoder,
+    geocoder: geocode.google,
 
     // Super class is just a top level class that goes in the markup
     // that is helpful for dynamic options and preDraw and styling
@@ -3217,7 +3394,7 @@ var Locator = function(options) {
   this.updateOptions();
 
   // We may want to reset
-  this.originalOptions = this.clone(this.options);
+  this.originalOptions = utils.clone(this.options);
 
   // Attempt to load saved options
   this.options = this.load(this.options);
@@ -3484,14 +3661,13 @@ _.extend(Locator.prototype, {
     this.map = new L.Map(mapEl.id, {
       minZoom: this.options.minZoom,
       maxZoom: this.options.maxZoom,
-      attributionControl: false
+      attributionControl: false,
+      trackResize: false
     });
     this.map.setView([view[0], view[1]], view[2]);
 
     // Tile layer
-    this.mapLayer = new L.TileLayer(this.options.tilesets[this.options.tileset].url, {
-      zIndex: -100
-    });
+    this.mapLayer = this.makeTileLayer(this.options.tilesets[this.options.tileset], -100);
     this.map.addLayer(this.mapLayer);
 
     // React to map view change except when drawing
@@ -3660,7 +3836,7 @@ _.extend(Locator.prototype, {
       +this.options.miniHeight.replace("h", "") / 100 * h;
 
     // Create layer for minimap
-    this.minimapLayer = new L.TileLayer(this.options.tilesets[this.options.tileset].url);
+    this.minimapLayer = this.makeTileLayer(this.options.tilesets[this.options.tileset]);
 
     // Create control
     this.miniMap = new L.Control.MiniMap(this.minimapLayer, {
@@ -3691,6 +3867,22 @@ _.extend(Locator.prototype, {
     });
   },
 
+  // Make tile layer
+  makeTileLayer: function(tileset, zIndex) {
+    var options = tileset.options ? _.clone(tileset.options) : {};
+    options = zIndex ? _.extend(options, { zIndex: zIndex }) : options;
+    var mapLayer;
+
+    if (tileset.type === "BingLayer") {
+      mapLayer = new L.BingLayer(tileset.key, options);
+    }
+    else {
+      mapLayer = new L.TileLayer(tileset.url, options);
+    }
+
+    return mapLayer;
+  },
+
   // Minimap custom canvas layer
   drawMiniCanvasLayer: function(styles) {
     this.miniCanvasLayer = L.tileLayer.canvas();
@@ -3717,10 +3909,20 @@ _.extend(Locator.prototype, {
         var bounds = this.map.getBounds();
         var nw = this.map.project(bounds.getNorthWest(), zoom, true);
         var se = this.map.project(bounds.getSouthEast(), zoom, true);
+        var width = this.options.miniAimingMinWidth ?
+          Math.max(this.options.miniAimingMinWidth, se.x - nw.x) :
+          se.x - nw.x;
+        var height = this.options.miniAimingMinHeight ?
+          Math.max(this.options.miniAimingMinHeight, se.y - nw.y) :
+          se.y - nw.y;
+        var adjustX = this.options.miniAimingMinWidth && width > se.x - nw.x ?
+          ((se.x - nw.x) - width) / 2 : 0;
+        var adjustY = this.options.miniAimingMinHeight && height > se.y - nw.y ?
+          ((se.y - nw.y) - height) / 2 : 0;
 
         // Draw box
         ctx.beginPath();
-        ctx.rect(nw.x - dim.nwPoint.x, nw.y - dim.nwPoint.y, se.x - nw.x, se.y - nw.y);
+        ctx.rect(nw.x - dim.nwPoint.x + adjustX, nw.y - dim.nwPoint.y + adjustY, width, height);
         ctx = this.leafletStylesToCanvas(styles, ctx);
         ctx.closePath();
       }
@@ -4114,7 +4316,7 @@ _.extend(Locator.prototype, {
       this.options.markers[0].text : "";
     var download = this.getEl(".download-link");
     download.href = mapCtx.canvas.toDataURL();
-    download.download = this.makeID(name) + ".png";
+    download.download = utils.makeID(name) + ".png";
     download.click();
   },
 
@@ -4164,7 +4366,7 @@ _.extend(Locator.prototype, {
 
   // Save
   save: function(history) {
-    var options = this.clone(this.options);
+    var options = utils.clone(this.options);
 
     // Remove some parts
     delete options.draggableMarker;
@@ -4184,7 +4386,7 @@ _.extend(Locator.prototype, {
         this.history = this.history.slice(0, this.historyIndex + 1);
       }
 
-      this.history.push(this.clone(options));
+      this.history.push(utils.clone(options));
       this.historyIndex = this.history.length - 1;
       this.canDo();
     }
@@ -4195,7 +4397,7 @@ _.extend(Locator.prototype, {
     var savedOptions = window.localStorage.getItem("options");
     if (savedOptions) {
       savedOptions = JSON.parse(savedOptions);
-      return this.extend(options, savedOptions);
+      return _.extend(options, savedOptions);
     }
     else {
       return options;
@@ -4204,14 +4406,14 @@ _.extend(Locator.prototype, {
 
   // Reset all options
   reset: function() {
-    this.options = this.extend(this.options, this.clone(this.originalOptions));
+    this.options = _.extend(this.options, utils.clone(this.originalOptions));
   },
 
   // Undo
   undo: function() {
     if (this.historyIndex > 0) {
       this.historyIndex = this.historyIndex - 1;
-      this.options = this.extend(this.options, this.clone(this.history[this.historyIndex]));
+      this.options = _.extend(this.options, utils.clone(this.history[this.historyIndex]));
     }
 
     this.canDo();
@@ -4221,7 +4423,7 @@ _.extend(Locator.prototype, {
   redo: function() {
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex = this.historyIndex + 1;
-      this.options = this.extend(this.options, this.clone(this.history[this.historyIndex]));
+      this.options = _.extend(this.options, utils.clone(this.history[this.historyIndex]));
     }
 
     this.canDo();
@@ -4235,28 +4437,6 @@ _.extend(Locator.prototype, {
     });
   },
 
-  // A vrey crude geocoder that uses Google goeocoding
-  defaultGeocoder: function(address, done) {
-    var httpRequest = new XMLHttpRequest();
-    var url = "https://maps.googleapis.com/maps/api/geocode/json?address=" + encodeURIComponent(address);
-    var once = _.once(done);
-
-    httpRequest.onreadystatechange = function() {
-      var data;
-
-      if (httpRequest.status === 200 && httpRequest.responseText) {
-        data = JSON.parse(httpRequest.responseText);
-
-        if (data && data.results && data.results.length) {
-          once(data.results[0].geometry.location.lat, data.results[0].geometry.location.lng);
-        }
-      }
-    };
-
-    httpRequest.open("GET", url);
-    httpRequest.send();
-  },
-
   // Standarize tileset options
   parseTilesets: function(tilesets) {
     _.each(tilesets, function(t, ti) {
@@ -4268,8 +4448,7 @@ _.extend(Locator.prototype, {
       }
 
       // Check for preview
-      if (!tilesets[ti].preview) {
-        // Pick a fairly arbitrary tile to use
+      if (!tilesets[ti].preview && tilesets[ti].url) {
         tilesets[ti].preview = tilesets[ti].url.replace("{s}", "a")
           .replace("{x}", "301")
           .replace("{y}", "385")
@@ -4280,132 +4459,120 @@ _.extend(Locator.prototype, {
     return tilesets;
   },
 
-  // Create a slug/id
-  makeID: function(input) {
-    input = input ? input.toString() : "";
-    input = input.toLowerCase().trim().replace(/\W+/g, "-");
-    input = input ? input : "locator";
-    return _.uniqueId(input + "-");
-  },
-
-  // Check if element is overflowed
-  overflowed: function(element, direction) {
-    return (!direction) ?
-      (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) :
-      (direction === "y") ? (element.scrollHeight > element.clientHeight) :
-      (direction === "x") ? (element.scrollWidth > element.clientWidth) : false;
-  },
-
   // Some hackery to fix the map vertical alignment
   fixMapVerticalAlign: function() {
     var display = this.getEl(".locator-display");
 
-    if (this.overflowed(display, "y")) {
+    if (dom.isOverflowed(display, "y")) {
       display.classList.add("overflowed-y");
     }
     else {
       display.classList.remove("overflowed-y");
     }
-  },
-
-  // Extend deep version (simple)
-  // http://andrewdupont.net/2009/08/28/deep-extending-objects-in-javascript/
-  extend: function(destination, source) {
-    if (!_.isObject(destination) && !_.isObject(source)) {
-      return (destination) ? destination : source;
-    }
-
-    _.each(source, _.bind(function(s, property) {
-      // Basic object
-      if (source[property] && source[property].constructor &&
-       source[property].constructor === Object) {
-        destination[property] = destination[property] || {};
-        this.extend(destination[property], source[property]);
-      }
-
-      // Array
-      else if (_.isArray(source[property])) {
-        destination[property] = [];
-        _.each(source[property], _.bind(function(v, i) {
-          destination[property][i] = this.extend(source[property][i]);
-        }, this));
-      }
-      else {
-        destination[property] = source[property];
-      }
-    }, this));
-
-    return destination;
-  },
-
-  // Deep clone
-  // http://stackoverflow.com/questions/4459928/how-to-deep-clone-in-javascript
-  clone: function clone(item) {
-    if (!item) {
-      return item;
-    }
-
-    var types = [Number, String, Boolean];
-    var result;
-    var _this = this;
-
-    // normalizing primitives if someone did new String('aaa'), or new Number('444');
-    types.forEach(function(type) {
-      if (item instanceof type) {
-        result = type(item);
-      }
-    });
-
-    if (typeof result === "undefined") {
-      // Check array
-      if (Object.prototype.toString.call(item) === "[object Array]") {
-        result = [];
-        item.forEach(function(child, index) {
-          result[index] = _this.clone(child);
-        });
-      }
-
-      // Object
-      else if (typeof item === "object") {
-        // testing that this is DOM
-        if (item.nodeType && typeof item.cloneNode === "function") {
-          result = item.cloneNode(true);
-        }
-
-        // Literal possible
-        else if (!item.prototype) {
-          // Date
-          if (item instanceof Date) {
-            result = new Date(item);
-          }
-          else {
-            // it is an object literal
-            result = {};
-            _.each(item, function(v, i) {
-              result[i] = _this.clone(item[i]);
-            });
-          }
-        }
-
-        // Other object
-        else {
-          result = item;
-        }
-      }
-
-      // Something way different
-      else {
-        result = item;
-      }
-    }
-
-    return result;
   }
 });
 
 // Export
 module.exports = Locator;
 
-},{"../libs/html2canvas.js":"UzntfK","../libs/ractive-transitions-slide.js":3}]},{},[4])
-(4)
+},{"../libs/html2canvas.js":"UzntfK","../libs/leaflet-plugins.bing.js":3,"../libs/ractive-transitions-slide.js":4,"./js/dom.js":6,"./js/geocode.js":7,"./js/utils.js":8}],6:[function(_dereq_,module,exports){
+/**
+ * DOM utilities.
+ */
+"use strict";
+
+// Dependencies
+//var _ = require("lodash");
+
+// Determine if element is overflowed with content
+function isOverflowed(element, direction) {
+  return (!direction) ?
+    (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) :
+    (direction === "y") ? (element.scrollHeight > element.clientHeight) :
+    (direction === "x") ? (element.scrollWidth > element.clientWidth) : false;
+}
+
+// Exports
+module.exports = {
+  isOverflowed: isOverflowed
+};
+
+},{}],7:[function(_dereq_,module,exports){
+/**
+ * Geocoding functions
+ */
+"use strict";
+
+// Dependencies
+var _ = _dereq_("lodash");
+
+// Simple google geocoder
+function google(address, done) {
+  var httpRequest = new XMLHttpRequest();
+  var url = "https://maps.googleapis.com/maps/api/geocode/json?address=" + encodeURIComponent(address);
+  var once = _.once(done);
+
+  httpRequest.onreadystatechange = function() {
+    var data;
+
+    if (httpRequest.status === 200 && httpRequest.responseText) {
+      data = JSON.parse(httpRequest.responseText);
+
+      if (data && data.results && data.results.length) {
+        once(data.results[0].geometry.location.lat, data.results[0].geometry.location.lng);
+      }
+    }
+  };
+
+  httpRequest.open("GET", url);
+  httpRequest.send();
+}
+
+// Exports
+module.exports = {
+  google: google
+};
+
+},{}],8:[function(_dereq_,module,exports){
+/**
+ * General utility functions.
+ */
+"use strict";
+
+// Dependencies
+var _ = _dereq_("lodash");
+
+// Deep clone
+// http://stackoverflow.com/questions/4459928/how-to-deep-clone-in-javascript
+function clone(item) {
+  function cloner(value) {
+    if (_.isElement(value)) {
+      return value.cloneNode(true);
+    }
+    else if (_.isDate(value)) {
+      return new Date(value);
+    }
+    else {
+      return _.cloneDeep(value);
+    }
+  }
+
+  return _.cloneDeepWith(item, cloner);
+}
+
+// Create a slug/id
+function makeID(input) {
+  input = input ? input.toString() : "";
+  input = input.toLowerCase().trim().replace(/\W+/g, "-");
+  input = input ? input : "locator";
+  return _.uniqueId(input + "-");
+}
+
+module.exports = {
+  clone: clone,
+  makeID: makeID
+};
+
+},{}]},{},[5])
+(5)
 });
