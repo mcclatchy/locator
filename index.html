@@ -16,7 +16,63 @@
     <script type="text/javascript">
       // Create locator
       var l = new window.Locator({
-        el: ".locator-container"
+        el: ".locator-container",
+        // Page info
+        title: "MCC Locator",
+        footer: "Questions? Contact <a href=\"mailto:glinch@mcclatchydc.com\">glinch@mcclatchydc.com</a>. Made by the <a href=\"//datanews.tumblr.com/\" target=\"_blank\">WNYC DataNews</a> team. Locator only works in <a href=\"//google.com/chrome\" target=\"_blank\">Google Chrome</a> at the moment.",
+        // Attribution (or source) that goes on top of map
+        embedAttribution: true,
+        // overrideAttribution: "First Last / Newsroom | © Mapbox © OpenStreetMap",
+        // Marker defaults
+        markerDefaults: {
+          text: "",
+          background: "rgba(0, 0, 0, 0.9)",
+          foreground: "rgba(255, 255, 255, 0.9)",
+          radius: 5,
+          fontSize: 16,
+          font: "\"McClatchy Sans\", Helvetica Neue, Arial, sans-serif", // "\"Open Sans\", Helvetica, Arial, sans-serif",
+          labelDistance: 20,
+          labelWidth: 3,
+          padding: 10
+        },
+        // Tiles
+        tilesets: {
+          "McClatchy base map": {
+            url: "https://api.mapbox.com/styles/v1/glinch/cj6cjmijh55x82qmxmbq0c76r/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiZ2xpbmNoIiwiYSI6ImNqNmNqMXNmMjFyM3gyeW42bzVuM2d5ZTEifQ.HjUv2059VZbdGoyoWuwEcA",
+            attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+          },
+          // "Mapbox Run, Bike, Hike (via WNYC)": {
+          //   url: "https://api.mapbox.com/v4/jkeefe.oee1c53c/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
+          //   attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+          // },          
+          "Mapbox Satellite (via WNYC)": {
+            url: "https://api.mapbox.com/v4/jkeefe.oee0fah0/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoiamtlZWZlIiwiYSI6ImVCXzdvUGsifQ.5tFwEhRfLmH36EUxuvUQLA",
+            attribution: "&copy; <a target='_blank' href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy; <a target='_blank' href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>; &copy; <a target='_blank' href='https://www.digitalglobe.com/'>DigitalGlobe</a>"
+          },
+          "Bing Maps Ariel (via WNYC)": {
+            type: "BingLayer",
+            // Don't steal, OK
+            key: "Aj4s_S9wMF1L8vcqCP7_ZWxtllCsUhD-LB8LY4KIOrkzHuMguY8NoZ_Gk4_lf4oD",
+            options: {
+              type: "Aerial",
+            },
+            attribution: "&copy; Bing",
+            preview: "https://ecn.t2.tiles.virtualearth.net/tiles/a0320101103.jpeg?g=5306"
+          },
+          "Bing Maps Aerial w/ Labels (via WNYC)": {
+            type: "BingLayer",
+            key: "Aj4s_S9wMF1L8vcqCP7_ZWxtllCsUhD-LB8LY4KIOrkzHuMguY8NoZ_Gk4_lf4oD",
+            options: {
+              type: "AerialWithLabels",
+            },
+            attribution: "&copy; Bing",
+            preview: "https://ecn.t2.tiles.virtualearth.net/tiles/h0320101103.jpeg?g=5306&mkt="
+          },
+
+          // Example of just url
+          //"Stamen Toner": "http://tile.stamen.com/toner/{z}/{x}/{y}.png"
+        },
+        tileset: "McClatchy base map",
       });
     </script>
   </body>
