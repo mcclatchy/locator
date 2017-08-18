@@ -1,6 +1,8 @@
 # To-dos
 
-* create a McClatchy tileset
+* continue updating tileset
+	* add MCC fonts
+* auto-populate `attributionOverride` based on selected tileset
 
 # Complete
 
@@ -10,3 +12,4 @@
 	* First Last / Newsroom | © Mapbox © OpenStreetMap
 * set and limit tilesets options
 	* line 36, locator.js
+* create a McClatchy tileset
