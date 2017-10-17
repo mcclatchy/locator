@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <title>MCC Locator</title>
+    <title>McClatchy Locator</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -18,7 +18,7 @@
       var l = new window.Locator({
         el: ".locator-container",
         // Page info
-        title: "MCC Locator",
+        title: "McClatchy Locator",
         footer: "Questions? Contact <a href=\"mailto:glinch@mcclatchydc.com\">glinch@mcclatchydc.com</a>. Made by the <a href=\"//datanews.tumblr.com/\" target=\"_blank\">WNYC DataNews</a> team. Locator only works in <a href=\"//google.com/chrome\" target=\"_blank\">Google Chrome</a> at the moment.",
         // Attribution (or source) that goes on top of map
         embedAttribution: true,
@@ -73,6 +73,15 @@
           //"Stamen Toner": "http://tile.stamen.com/toner/{z}/{x}/{y}.png"
         },
         tileset: "McClatchy base map",
+        // Dimensions
+        widths: {
+          WebHalfWidth: 400,
+          WebFullWidth: 800,
+          // PrintOneCol: 1600,
+          // PrintTwoCol: 3200,
+          // PrintThreeCol: 4800,
+        },
+        width: "WebFullWidth",
       });
     </script>
   </body>
